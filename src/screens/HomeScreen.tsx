@@ -7,8 +7,9 @@ import {
   Image,
   Pressable,
   findNodeHandle,
+  ScrollView,
 } from 'react-native';
-import {FocusManager} from '@amazon-devices/react-native-kepler';
+import {FocusManager, TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import type {NativeStackScreenProps} from '@amazon-devices/react-navigation__native-stack';
 import type {RootStackParamList} from '../App';
 
@@ -18,6 +19,8 @@ interface MovieItem {
   id: string;
   title: string;
   description: string;
+  category: string;
+  trending: boolean;
   images: {
     thumbnail_450x253: string;
     poster_16x9: string;
@@ -28,13 +31,18 @@ interface MovieItem {
   }>;
 }
 
+interface ContentRow {
+  title: string;
+  items: MovieItem[];
+}
+
 const ITEM_WIDTH = 400;
 const ITEM_HEIGHT = 225; // 16:9 aspect ratio
 const FOCUS_BORDER_WIDTH = 4;
 const ITEM_SPACING = 16;
 
 const HomeScreen = ({navigation}: Props) => {
-  const [movies, setMovies] = useState<MovieItem[]>([]);
+  const [contentRows, setContentRows] = useState<ContentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const firstItemRef = useRef(null);
 
@@ -43,14 +51,14 @@ const HomeScreen = ({navigation}: Props) => {
   }, []);
 
   useEffect(() => {
-    // Set focus to first item after movies load
-    if (movies.length > 0 && firstItemRef.current) {
+    // Set focus to first item after content loads
+    if (contentRows.length > 0 && firstItemRef.current) {
       const handle = findNodeHandle(firstItemRef.current);
       if (handle) {
         FocusManager.focus(handle);
       }
     }
-  }, [movies]);
+  }, [contentRows]);
 
   const fetchMovies = async () => {
     try {
@@ -58,7 +66,38 @@ const HomeScreen = ({navigation}: Props) => {
         'https://raw.githubusercontent.com/efahsl/scrap-tv-feed/refs/heads/main/catalog-fullUrls-720p.json',
       );
       const data = await response.json();
-      setMovies(data.items || []);
+      const movies: MovieItem[] = data.items || [];
+
+      // Organize content into rows
+      const rows: ContentRow[] = [];
+
+      // First row: Trending Now
+      const trendingItems = movies.filter(item => item.trending === true);
+      if (trendingItems.length > 0) {
+        rows.push({
+          title: 'Trending Now',
+          items: trendingItems,
+        });
+      }
+
+      // Group by category
+      const categoryMap = new Map<string, MovieItem[]>();
+      movies.forEach(item => {
+        if (!categoryMap.has(item.category)) {
+          categoryMap.set(item.category, []);
+        }
+        categoryMap.get(item.category)!.push(item);
+      });
+
+      // Add category rows
+      categoryMap.forEach((items, category) => {
+        rows.push({
+          title: category,
+          items: items,
+        });
+      });
+
+      setContentRows(rows);
     } catch (error) {
       console.error('Error fetching movies:', error);
     } finally {
@@ -66,11 +105,42 @@ const HomeScreen = ({navigation}: Props) => {
     }
   };
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {contentRows.map((row, rowIndex) => (
+        <ContentRowComponent
+          key={row.title}
+          row={row}
+          isFirstRow={rowIndex === 0}
+          firstItemRef={rowIndex === 0 ? firstItemRef : null}
+          navigation={navigation}
+        />
+      ))}
+    </ScrollView>
+  );
+};
+
+interface ContentRowProps {
+  row: ContentRow;
+  isFirstRow: boolean;
+  firstItemRef: React.RefObject<any> | null;
+  navigation: any;
+}
+
+const ContentRowComponent = ({row, isFirstRow, firstItemRef, navigation}: ContentRowProps) => {
   const renderItem = ({item, index}: {item: MovieItem; index: number}) => {
     return (
       <MovieCard
         item={item}
-        ref={index === 0 ? firstItemRef : null}
+        ref={isFirstRow && index === 0 ? firstItemRef : null}
         onPress={() => {
           navigation.navigate('Details', {
             banner: item.images.poster_16x9,
@@ -83,27 +153,19 @@ const HomeScreen = ({navigation}: Props) => {
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Latest Releases</Text>
-      <View style={styles.listContainer}>
+    <View style={styles.rowContainer}>
+      <Text style={styles.rowHeader}>{row.title}</Text>
+      <TVFocusGuideView trapFocusLeft={true} trapFocusRight={true}>
         <FlatList
-          data={movies}
+          data={row.items}
           renderItem={renderItem}
           keyExtractor={item => item.id}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
         />
-      </View>
+      </TVFocusGuideView>
     </View>
   );
 };
@@ -115,10 +177,7 @@ const MovieCard = React.forwardRef<View, {item: MovieItem; onPress: () => void}>
     return (
       <Pressable
         ref={ref}
-        style={[
-          styles.card,
-          focused && styles.cardFocused,
-        ]}
+        style={[styles.card, focused && styles.cardFocused]}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onPress={onPress}>
@@ -137,16 +196,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
     paddingTop: 60,
+  },
+  rowContainer: {
+    marginBottom: 40,
     paddingLeft: 60,
   },
-  header: {
+  rowHeader: {
     color: '#fff',
     fontSize: 48,
     fontWeight: 'bold',
     marginBottom: 30,
-  },
-  listContainer: {
-    height: ITEM_HEIGHT + (FOCUS_BORDER_WIDTH * 2) + (ITEM_SPACING * 2),
   },
   listContent: {
     paddingRight: 60,

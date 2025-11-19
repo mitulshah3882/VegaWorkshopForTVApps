@@ -6,7 +6,7 @@ import type {RootStackParamList} from '../App';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoPlayer'>;
 
-export const VideoPlayerScreen = ({route}: Props) => {
+export const VideoPlayerScreen = ({route, navigation}: Props) => {
   const {videoUrl} = route.params;
   const video = useRef<VideoPlayer | null>(null);
   const [useKeplerVideoView, setUseKeplerVideoView] = useState(false);
@@ -21,16 +21,26 @@ export const VideoPlayerScreen = ({route}: Props) => {
       if (video.current) {
         video.current.pause();
         video.current.currentTime = 0;
+        video.current.removeEventListener('ended', handleVideoEnded);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleVideoEnded = () => {
+    console.log('Video playback ended, navigating back');
+    navigation.goBack();
+  };
 
   const initializingPreBuffering = async () => {
     video.current = new VideoPlayer();
     await video.current.initialize();
     video.current!.autoplay = true;
     video.current.src = videoUrl;
+    
+    // Add event listener for video end
+    video.current.addEventListener('ended', handleVideoEnded);
+    
     setUseKeplerVideoView(true);
     console.log('VideoPlayerScreen init complete, setting kepler video view to true');
   };
