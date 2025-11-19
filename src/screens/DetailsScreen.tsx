@@ -14,6 +14,7 @@ const DetailsScreen = ({route, navigation}: Props) => {
   const handlePlay = () => {
     console.log('Play button pressed for:', title);
     console.log('Video URL:', videoUrl);
+    navigation.navigate('VideoPlayer', {videoUrl});
   };
 
   const handleAddToWatchlist = () => {
