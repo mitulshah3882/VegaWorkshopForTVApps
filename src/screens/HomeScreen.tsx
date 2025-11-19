@@ -3,13 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   Image,
   Pressable,
   findNodeHandle,
   ScrollView,
 } from 'react-native';
-import {FocusManager, TVFocusGuideView} from '@amazon-devices/react-native-kepler';
+import {FocusManager} from '@amazon-devices/react-native-kepler';
+import {Carousel, ItemInfo} from '@amazon-devices/kepler-ui-components';
 import type {NativeStackScreenProps} from '@amazon-devices/react-navigation__native-stack';
 import type {RootStackParamList} from '../App';
 
@@ -39,7 +39,6 @@ interface ContentRow {
 const ITEM_WIDTH = 400;
 const ITEM_HEIGHT = 225; // 16:9 aspect ratio
 const FOCUS_BORDER_WIDTH = 4;
-const ITEM_SPACING = 16;
 
 const HomeScreen = ({navigation}: Props) => {
   const [contentRows, setContentRows] = useState<ContentRow[]>([]);
@@ -105,6 +104,15 @@ const HomeScreen = ({navigation}: Props) => {
     }
   };
 
+  const handleItemPress = (item: MovieItem) => {
+    navigation.navigate('Details', {
+      banner: item.images.poster_16x9,
+      title: item.title,
+      description: item.description,
+      videoUrl: item.sources[0]?.url || '',
+    });
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -121,7 +129,7 @@ const HomeScreen = ({navigation}: Props) => {
           row={row}
           isFirstRow={rowIndex === 0}
           firstItemRef={rowIndex === 0 ? firstItemRef : null}
-          navigation={navigation}
+          onItemPress={handleItemPress}
         />
       ))}
     </ScrollView>
@@ -132,45 +140,57 @@ interface ContentRowProps {
   row: ContentRow;
   isFirstRow: boolean;
   firstItemRef: React.RefObject<any> | null;
-  navigation: any;
+  onItemPress: (item: MovieItem) => void;
 }
 
-const ContentRowComponent = ({row, isFirstRow, firstItemRef, navigation}: ContentRowProps) => {
+const ContentRowComponent = ({
+  row,
+  isFirstRow,
+  firstItemRef,
+  onItemPress,
+}: ContentRowProps) => {
   const renderItem = ({item, index}: {item: MovieItem; index: number}) => {
     return (
       <MovieCard
         item={item}
         ref={isFirstRow && index === 0 ? firstItemRef : null}
-        onPress={() => {
-          navigation.navigate('Details', {
-            banner: item.images.poster_16x9,
-            title: item.title,
-            description: item.description,
-            videoUrl: item.sources[0]?.url || '',
-          });
-        }}
+        onPress={() => onItemPress(item)}
       />
     );
   };
 
+  const itemInfo: ItemInfo[] = [
+    {
+      view: MovieCard,
+      dimension: {
+        width: ITEM_WIDTH + FOCUS_BORDER_WIDTH * 2,
+        height: ITEM_HEIGHT + FOCUS_BORDER_WIDTH * 2,
+      },
+    },
+  ];
+
   return (
     <View style={styles.rowContainer}>
       <Text style={styles.rowHeader}>{row.title}</Text>
-      <TVFocusGuideView trapFocusLeft={true} trapFocusRight={true}>
-        <FlatList
-          data={row.items}
-          renderItem={renderItem}
-          keyExtractor={item => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-        />
-      </TVFocusGuideView>
+      <Carousel
+        data={row.items}
+        orientation="horizontal"
+        itemDimensions={itemInfo}
+        renderItem={renderItem}
+        getItemForIndex={() => MovieCard}
+        keyProvider={(item, index) => `${index}-${item.id}`}
+        focusIndicatorType="fixed"
+      />
     </View>
   );
 };
 
-const MovieCard = React.forwardRef<View, {item: MovieItem; onPress: () => void}>(
+interface MovieCardProps {
+  item: MovieItem;
+  onPress: () => void;
+}
+
+const MovieCard = React.forwardRef<View, MovieCardProps>(
   ({item, onPress}, ref) => {
     const [focused, setFocused] = useState(false);
 
@@ -207,13 +227,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 30,
   },
-  listContent: {
-    paddingRight: 60,
-  },
   card: {
     width: ITEM_WIDTH,
     height: ITEM_HEIGHT,
-    marginRight: ITEM_SPACING,
     borderWidth: FOCUS_BORDER_WIDTH,
     borderColor: 'transparent',
   },

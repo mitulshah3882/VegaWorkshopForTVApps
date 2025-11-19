@@ -18,6 +18,7 @@
     },
   "dependencies": {
     "@amazon-devices/kepler-performance-api": "*",
+    "@amazon-devices/kepler-ui-components": "*",
     "@amazon-devices/react-native-kepler": "^2.0.0",
     "@amazon-devices/react-navigation__native": "~7.0.0",
     "@amazon-devices/react-navigation__native-stack": "~7.0.0",
