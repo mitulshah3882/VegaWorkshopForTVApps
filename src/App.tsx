@@ -5,7 +5,11 @@ import {
 } from '@amazon-devices/react-native-screens';
 import {createNativeStackNavigator} from '@amazon-devices/react-navigation__native-stack';
 import {NavigationContainer} from '@amazon-devices/react-navigation__native';
-import {useKeplerAppStateManager} from '@amazon-devices/react-native-kepler';
+import {
+  useKeplerAppStateManager,
+  usePreventHideSplashScreen,
+  useHideSplashScreenCallback,
+} from '@amazon-devices/react-native-kepler';
 import {useReportFullyDrawn} from '@amazon-devices/kepler-performance-api';
 import HomeScreen from './screens/HomeScreen';
 import DetailsScreen from './screens/DetailsScreen';
@@ -32,7 +36,11 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const App = () => {
+  // Prevent splash screen from hiding automatically (must be first)
+  usePreventHideSplashScreen();
+  
   const reportFullyDrawnCallback = useReportFullyDrawn();
+  const hideSplashScreenCallback = useHideSplashScreenCallback();
   const keplerAppStateManager = useKeplerAppStateManager();
   const [appState, setAppState] = useState(
     keplerAppStateManager.getCurrentState(),
@@ -41,7 +49,9 @@ export const App = () => {
   // Report fully drawn after first render (cold start)
   useEffect(() => {
     reportFullyDrawnCallback();
-  }, [reportFullyDrawnCallback]);
+    // Hide splash screen only after app is fully drawn
+    hideSplashScreenCallback();
+  }, [reportFullyDrawnCallback, hideSplashScreenCallback]);
 
   // Handle app state changes for warm start
   const handleAppStateChange = useCallback(
@@ -52,6 +62,8 @@ export const App = () => {
         stateChange === 'active'
       ) {
         reportFullyDrawnCallback();
+        // Hide splash screen after warm start fully drawn
+        hideSplashScreenCallback();
       }
 
       // Update app state
@@ -59,7 +71,7 @@ export const App = () => {
         setAppState(stateChange);
       }
     },
-    [appState, reportFullyDrawnCallback],
+    [appState, reportFullyDrawnCallback, hideSplashScreenCallback],
   );
 
   // Set up app state listener
